@@ -453,8 +453,11 @@ body.dnd-active .card:hover { transform: none !important; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .modal-root { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 20px; }
+/* 弹窗容器内：蒙板垫底、弹窗置顶，避免蒙板盖住确认/取消按钮 */
+.modal-root .scrim { z-index: 0; }
 .modal {
   position: relative;
+  z-index: 1;
   width: 620px; max-width: 100%;
   max-height: calc(100dvh - 40px);
   display: flex; flex-direction: column;
