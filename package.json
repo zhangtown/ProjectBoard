@@ -9,5 +9,8 @@
   },
   "devDependencies": {
     "@neutralinojs/neu": "^10.1.0"
+  },
+  "dependencies": {
+    "@neutralinojs/lib": "^6.9.0"
   }
 }

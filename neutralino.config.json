@@ -15,12 +15,13 @@
   ],
   "cli": {
     "binaryName": "ProjectBoard",
-    "resourcesPath": "/resources/",
-    "extensionsPath": "/extensions/"
+    "resourcesPath": "resources",
+    "binaryVersion": "6.9.0"
   },
   "modes": {
     "window": {
       "title": "项目看板",
+      "icon": "resources/appicon.png",
       "width": 1280,
       "height": 820,
       "minWidth": 820,

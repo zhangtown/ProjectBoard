@@ -605,7 +605,9 @@
     });
 
     // 桌面端（Neutralino）：用系统保存对话框落地文件；浏览器回退到锚点下载
-    if (window.Neutralino && window.Neutralino.os) {
+    // 注意：必须用 window.NL_OS 判定真实 Neutralino 运行时（仅框架注入），
+    // 不能只用 window.Neutralino（引入客户端库后浏览器里该对象也存在，会误触连接）。
+    if (window.Neutralino && window.NL_OS) {
       window.Neutralino.os.showSaveDialog({
         title: '导出 Excel',
         filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }]
@@ -1046,4 +1048,9 @@
   load();
   bind();
   renderAll();
+
+  // 桌面端（Neutralino）：建立与框架的原生通道，确保导出等功能可用
+  if (window.Neutralino && window.NL_OS) {
+    try { window.Neutralino.init(); } catch (e) { /* 忽略：非桌面环境不会执行到这里 */ }
+  }
 })();

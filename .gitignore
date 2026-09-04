@@ -1,6 +1,7 @@
 node_modules/
 .neu/
 dist/
+bin/
 *.exe
 resources.neu
 .DS_Store
