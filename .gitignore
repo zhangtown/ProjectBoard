@@ -1,0 +1,7 @@
+node_modules/
+.neu/
+dist/
+*.exe
+resources.neu
+.DS_Store
+.workbuddy/

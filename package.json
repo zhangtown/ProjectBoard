@@ -1,0 +1,13 @@
+{
+  "name": "project-board",
+  "version": "1.0.0",
+  "description": "轻量化桌面端项目看板（Neutralino + 原生 WebView2，不依赖浏览器）",
+  "scripts": {
+    "start": "neu run",
+    "build": "neu build --release",
+    "update": "neu update"
+  },
+  "devDependencies": {
+    "@neutralinojs/neu": "^10.1.0"
+  }
+}

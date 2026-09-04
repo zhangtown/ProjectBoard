@@ -1,0 +1,34 @@
+{
+  "applicationId": "com.bozhi.projectboard",
+  "version": "1.0.0",
+  "defaultMode": "window",
+  "documentRoot": "resources/",
+  "url": "/index.html",
+  "port": 0,
+  "enableServer": true,
+  "enableNativeAPI": true,
+  "nativeAllowList": [
+    "app.*",
+    "os.*",
+    "window.*",
+    "filesystem.*"
+  ],
+  "cli": {
+    "binaryName": "ProjectBoard",
+    "resourcesPath": "/resources/",
+    "extensionsPath": "/extensions/"
+  },
+  "modes": {
+    "window": {
+      "title": "项目看板",
+      "width": 1280,
+      "height": 820,
+      "minWidth": 820,
+      "minHeight": 560,
+      "center": true,
+      "resizable": true,
+      "maximizable": true,
+      "fullScreen": false
+    }
+  }
+}
