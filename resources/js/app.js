@@ -686,6 +686,8 @@
   var drag = null;      // 正在拖拽的状态
   var rafId = 0;
   var clickBlockUntil = 0;  // 拖拽结束后短暂屏蔽 click，避免误触卡片按钮
+  var colCache = null;  // 拖拽期间缓存的列矩形，避免每帧 getBoundingClientRect
+  var indicatorEl = null;   // 拖拽期间的插入指示线
 
   function onPointerDown(e) {
     if (e.button != null && e.button !== 0) return;
@@ -731,6 +733,10 @@
     }
 
     e.preventDefault();
+    // 拖拽期间：坐标写入 drag，占位移动由 pointermove 事件驱动（非逐帧）
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    updateDropTarget(e.clientX, e.clientY);
   }
 
   function onPointerUp() {
@@ -761,6 +767,9 @@
       dropCol: null
     };
 
+    // 缓存所有列与卡片的矩形（拖拽起点一次性读取），后续逐帧不再触碰布局
+    buildColCache();
+
     if (window.getSelection) { try { window.getSelection().removeAllRanges(); } catch (err) {} }
 
     var ghost = el.cloneNode(true);
@@ -781,6 +790,22 @@
     rafId = requestAnimationFrame(tick);
   }
 
+  // 缓存列矩形与每列卡片矩形：仅在拖拽起点与 DOM 变动后重建。
+  // 这是消除卡顿的关键——把「每帧 getBoundingClientRect」降到「按需」。
+  function buildColCache() {
+    colCache = [];
+    boardEl.querySelectorAll('.cards').forEach(function (zone) {
+      var zr = zone.getBoundingClientRect();
+      var items = [];
+      Array.prototype.slice.call(zone.querySelectorAll('.card')).forEach(function (c) {
+        if (c === drag.el) return;
+        var cr = c.getBoundingClientRect();
+        items.push({ el: c, top: cr.top, bottom: cr.bottom, mid: (cr.top + cr.bottom) / 2 });
+      });
+      colCache.push({ zone: zone, top: zr.top, bottom: zr.bottom, left: zr.left, right: zr.right, items: items });
+    });
+  }
+
   function moveGhost() {
     if (!drag) return;
     var t = 'translate3d(' + (drag.x - drag.offX) + 'px,' + (drag.y - drag.offY) + 'px,0) rotate(1.2deg) scale(1.02)';
@@ -789,24 +814,26 @@
 
   function tick() {
     if (!drag) return;
-    // 每帧仅读取一次指针坐标、仅做一次命中测试，避免重复强制重排
-    var x = pending ? pending.x : drag.x;
-    var y = pending ? pending.y : drag.y;
-    drag.x = x; drag.y = y;
+    // 逐帧只做「合成器友好」的 transform 更新，绝不做任何布局读取。
+    // 拖拽坐标已在 pointermove 中写入 drag.x/drag.y。
     moveGhost();
-    var under = document.elementFromPoint(x, y);
-    autoScroll(x, y, under);
-    updateDropTarget(x, y, under);
+    autoScroll();
     rafId = requestAnimationFrame(tick);
   }
 
-  function autoScroll(x, y, under) {
-    var box = under && under.closest ? under.closest('.cards') : null;
-    if (box && box.scrollHeight > box.clientHeight + 2) {
-      var r = box.getBoundingClientRect();
-      var edge = 56;
-      if (y < r.top + edge) box.scrollTop -= Math.ceil((r.top + edge - y) / 5);
-      else if (y > r.bottom - edge) box.scrollTop += Math.ceil((y - (r.bottom - edge)) / 5);
+  function autoScroll() {
+    // 用缓存列矩形判断是否贴近列边缘，避免逐帧 elementFromPoint / getBoundingClientRect。
+    var x = drag.x, y = drag.y;
+    if (!colCache) return;
+    for (var i = 0; i < colCache.length; i++) {
+      var c = colCache[i];
+      if (x < c.left || x > c.right) continue;
+      var zone = c.zone;
+      if (zone.scrollHeight > zone.clientHeight + 2) {
+        var edge = 56;
+        if (y < c.top + edge) zone.scrollTop -= Math.ceil((c.top + edge - y) / 5);
+        else if (y > c.bottom - edge) zone.scrollTop += Math.ceil((y - (c.bottom - edge)) / 5);
+      }
     }
 
     var b = boardEl;
@@ -816,32 +843,66 @@
     }
   }
 
-  // 拖拽过程中的占位移动：把真实卡片（半透明占位）直接插到目标位置，
-  // 不再对全部卡片跑 FLIP 重排 + 重启过渡动画，彻底消除逐帧布局抖动。
-  function updateDropTarget(x, y, under) {
-    if (!drag) return;
-    var container = under && under.closest ? under.closest('.cards') : null;
-    if (!container) return;
+  // 由 pointermove 触发（非逐帧）：判定指针所在列，并做轻量插入指示线。
+  // 拖拽期间「不移动真实卡片」——只移动一条指示线 + 高亮目标列，彻底消除逐帧重排。
+  // 使用缓存矩形，零 getBoundingClientRect 调用；仅在列/插入位真正变化时操作 DOM。
+  function updateDropTarget(x, y) {
+    if (!drag || !colCache) return;
+    var container = null, hit = null;
+    for (var i = 0; i < colCache.length; i++) {
+      var c = colCache[i];
+      if (x >= c.left && x <= c.right && y >= c.top && y <= c.bottom) {
+        container = c.zone; hit = c; break;
+      }
+    }
+    if (!container) {
+      if (drag.dropCol) { drag.dropCol.classList.remove('is-drop-target'); drag.dropCol = null; }
+      removeIndicator();
+      return;
+    }
 
     if (drag.dropCol && drag.dropCol !== container) drag.dropCol.classList.remove('is-drop-target');
 
-    var others = Array.prototype.slice.call(container.querySelectorAll('.card'))
-      .filter(function (c) { return c !== drag.el; });
-
     var before = null;
-    for (var i = 0; i < others.length; i++) {
-      var r = others[i].getBoundingClientRect();
-      if (y < r.top + r.height / 2) { before = others[i]; break; }
+    for (var j = 0; j < hit.items.length; j++) {
+      if (y < hit.items[j].mid) { before = hit.items[j].el; break; }
     }
 
-    if (drag.el.parentNode === container && drag.el.nextElementSibling === before) return;
+    // 仅当目标列或插入位真正变化时才重绘指示线（避免 pointermove 每步都读 offsetTop）
+    if (drag.dropCol === container && drag.targetBefore === before) return;
 
-    var hint = container.querySelector('.empty');
-    if (hint) hint.remove();
-    container.insertBefore(drag.el, before);
     container.classList.add('is-drop-target');
     drag.dropCol = container;
-    clearEmptyHints();
+    drag.targetBefore = before;   // 记录落位目标，endDrag 时一次性插入
+    placeIndicator(container, before);
+  }
+
+  // 插入指示线：绝对定位浮在列内，不参与 flex 布局，零重排
+  function placeIndicator(container, before) {
+    var ind = indicatorEl;
+    if (!ind) {
+      ind = document.createElement('div');
+      ind.className = 'drop-indicator';
+      container.appendChild(ind);
+      indicatorEl = ind;
+    } else if (ind.parentNode !== container) {
+      container.appendChild(ind);
+    }
+
+    var top;
+    if (before) {
+      // 目标卡片顶部，微上调让指示线贴合卡片间距
+      top = before.offsetTop - 4;
+    } else {
+      // 列尾：最后一个卡片底部（或空列提示底部）
+      var last = container.querySelector('.card:last-of-type');
+      top = last ? last.offsetTop + last.offsetHeight + 4 : 8;
+    }
+    ind.style.top = top + 'px';
+  }
+  function removeIndicator() {
+    if (indicatorEl && indicatorEl.parentNode) indicatorEl.parentNode.removeChild(indicatorEl);
+    indicatorEl = null;
   }
 
   function clearEmptyHints() {
@@ -863,6 +924,8 @@
   function endDrag(commit) {
     if (!drag) return;
     cancelAnimationFrame(rafId);
+    colCache = null;
+    removeIndicator();
     if (drag.dropCol) drag.dropCol.classList.remove('is-drop-target');
     var ghost = drag.ghost;
     var el = drag.el;
@@ -874,7 +937,15 @@
     if (commit) {
       clickBlockUntil = Date.now() + 320;
 
-      // 按 DOM 顺序重建数据
+      // 一次性落位：把卡片插入目标列的目标位置，再按 DOM 顺序重建数据
+      var dest = drag.dropCol;
+      if (dest) {
+        var empty = dest.querySelector('.empty');
+        if (empty) empty.remove();
+        dest.insertBefore(el, drag.targetBefore || null);
+        clearEmptyHints();
+      }
+
       var prevIds = cards.map(function (c) { return c.id; }).join('|');
       var prevCols = cards.map(function (c) { return c.col; }).join('|');
       var next = [];

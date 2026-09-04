@@ -78,9 +78,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  backdrop-filter: saturate(180%) blur(14px);
-  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 .topbar__inner {
@@ -247,6 +245,7 @@ body {
 .column__spacer { flex: 1; }
 
 .cards {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -260,6 +259,7 @@ body {
   border-radius: var(--r-md);
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
+  contain: layout style;
   transition: box-shadow .16s, background .16s;
 }
 .cards::-webkit-scrollbar { width: 8px; }
@@ -292,6 +292,7 @@ body {
   touch-action: manipulation;
   -webkit-user-drag: none;
   overflow: hidden;
+  contain: layout style paint;
   transition: box-shadow .18s, border-color .18s, transform .18s;
 }
 .card.is-new { animation: cardIn .30s var(--ease) both; }
@@ -415,8 +416,23 @@ body {
   opacity: .97;
   will-change: transform;
 }
+.drop-indicator {
+  position: absolute;
+  left: 0; right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.4);
+  pointer-events: none;
+  transform: translateY(-4px);
+  animation: indicatorIn .12s var(--ease) both;
+}
+@keyframes indicatorIn { from { opacity: 0; } to { opacity: 1; } }
 body.dnd-active { user-select: none; -webkit-user-select: none; cursor: grabbing; }
 body.dnd-active * { cursor: grabbing !important; }
+/* 拖拽期间冻结所有卡片的过渡与悬浮位移，避免 insertBefore 重排时触发动画 */
+body.dnd-active .card { transition: none !important; transform: none !important; }
+body.dnd-active .card:hover { transform: none !important; }
 
 .foot-note {
   margin-top: 18px;
